@@ -88,7 +88,7 @@
             <div class="text-white text-right hidden sm:block">
                 <div class="flex items-center gap-2 text-sm">
                     <span class="live-dot w-2 h-2 bg-green-400 rounded-full"></span>
-                    <span id="updateTime">2026-06-28 13:50:00</span>
+                    <span id="updateTime">2026-06-29 17:37:00</span>
                 </div>
             </div>
         </div>
@@ -393,7 +393,7 @@
                 name: 'Hardy',
                 avatar: '👨',
                 height: 170,
-                weight: 75.4,
+                weight: 75.5,
                 chest: null,
                 arm: null,
                 waist: null,
@@ -410,26 +410,24 @@
                 days: 1,  // 从2026-06-28开始
                 weightDiff: -0.5,  // 累计下降0.5kg
                 // 今日数据
-                todayCalorie: 0,
+                todayCalorie: 1145,
                 calorieTarget: 1900,
-                todayWater: 0,
+                todayWater: 1500,
                 waterTarget: 2000,
                 todayExercise: 0,
                 exerciseTarget: 500,
                 // 运动明细
-                exercises: [{ type: "aerobic", name: "慢走", duration: 35, calorie: 300 }, { type: "anaerobic", name: "练胸", duration: 45, calorie: 400 }],
+                exercises: [],
                 // 今日饮食明细
                 todayFood: [
-                    { name: "待反馈", calorie: "-" },
-                    { name: "待反馈", calorie: "-" },
-                    { name: "待反馈", calorie: "-" },
-                    { name: "待反馈", calorie: "-" }
+                    { name: "全麦面包*2 + 牛奶200ml + 鸡蛋", calorie: 490 },
+                    { name: "米饭150g + 家常菜300g", calorie: 655 }
                 ],
                 // 本周热量数据（用于图表）
-                weekCalories: [0, 0, 0, 0, 0, 0, 1647],
-                weekExercise: [0, 0, 0, 0, 0, 0, 700],
+                weekCalories: [0, 0, 0, 0, 0, 1647, 490],
+                weekExercise: [0, 0, 0, 0, 0, 700, 0],
                 // 体重数据（kg）
-                weekWeight: [75.4, 0, 0, 0, 0, 0, 75.4],
+                weekWeight: [75.4, 0, 0, 0, 0, 75.4, 75.5],
                 monthWeight: [75.5, 0, 0, 0],
                 // 体脂数据（%）
                 weekBodyFat: [21, 0, 0, 0, 0, 0, 0],
@@ -474,7 +472,7 @@
                 name: 'Della',
                 avatar: '👩',
                 height: 162,
-                weight: 65.5,
+                weight: 64.9,
                 chest: null,
                 arm: null,
                 waist: null,
@@ -489,32 +487,30 @@
                 targetWeight: 58,
                 targetBodyFat: 28,
                 days: 15,  // 2026-06-14 启动
-                weightDiff: -0.85,  // 已减重 0.85kg
+                weightDiff: -1.0,  // 已减重 1.0kg
                 // 今日数据
-                todayCalorie: 0,
-                calorieTarget: 1550,    // 训练日 1550-1650
-                todayWater: 0,
+                todayCalorie: 685,
+                calorieTarget: 1550,    // 非训练日 1400-1550
+                todayWater: 1200,
                 waterTarget: 2000,
                 todayExercise: 0,
                 exerciseTarget: 500,
                 // 运动明细
-                exercises: [{ type: "anaerobic", name: "练臀腿", duration: 50, calorie: 440 }, { type: "aerobic", name: "爬坡", duration: 45, calorie: 300 }],
+                exercises: [],
                 // 今日饮食明细
                 todayFood: [
-                    { name: "待反馈", calorie: "-" },
-                    { name: "待反馈", calorie: "-" },
-                    { name: "待反馈", calorie: "-" },
-                    { name: "待反馈", calorie: "-" }
+                    { name: "全麦面包半片 + 牛奶200ml + 鸡蛋", calorie: 235 },
+                    { name: "松板肉150g + 生菜4片 + 米饭120g", calorie: 450 }
                 ],
                 // 本周热量数据（用于图表）
-                weekCalories: [0, 0, 0, 0, 0, 0, 1453],
-                weekExercise: [0, 0, 0, 0, 0, 0, 740],
+                weekCalories: [0, 0, 0, 0, 0, 1453, 0],
+                weekExercise: [0, 0, 0, 0, 0, 740, 0],
                 // 月维度数据（过去4周总热量）
                 monthCalories: [11200, 11550, 11060, 6400],
                 monthExercise: [2940, 3360, 2660, 1280],
                 // 体重数据（kg）
-                weekWeight: [65.5, 0, 0, 0, 0, 0, 65.5],
-                monthWeight: [65.05, 0, 0, 0],
+                weekWeight: [65.5, 0, 0, 0, 0, 65.5, 64.9],
+                monthWeight: [65.5, 0, 0, 0],
                 // 体脂数据（%）
                 weekBodyFat: [37.7, 0, 0, 0, 0, 0, 0],
                 monthBodyFat: [37.7, 0, 0, 0],
@@ -524,13 +520,13 @@
                 // 健康建议数据
                 advice: {
                     positive: [
-                        '累计减重0.85kg，稳步前进',
-                        '减脂第15天，执行力很棒'
+                        '累计减重1.0kg，稳步前进',
+                        '减脂第15天，执行力很棒',
+                        '早餐已吃，热量控制良好'
                     ],
                     improve: [
-                        '早餐未吃，建议按时吃早餐保护代谢',
                         '饮水量待记录，目标2000ml/天',
-                        '今日运动待反馈'
+                        '今日为非训练日，可适当散步'
                     ],
                     diet: [
                         '早餐必须吃，保护代谢，建议蛋+奶+燕麦',

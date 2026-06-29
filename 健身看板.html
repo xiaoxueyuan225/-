@@ -441,67 +441,86 @@
             document.getElementById('todayFoodList').innerHTML = html;
         }
 
+        // 安全设置元素文本
+        function setText(id, text) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = text;
+        }
+        
+        // 安全设置元素样式
+        function setStyle(id, prop, value) {
+            const el = document.getElementById(id);
+            if (el && el.style) el.style[prop] = value;
+        }
+        
+        // 安全设置类名
+        function setClass(id, className) {
+            const el = document.getElementById(id);
+            if (el) el.className = className;
+        }
+
         // 切换用户函数
         function switchUser(user) {
             currentUser = user;
             const data = userData[user];
             
             // 更新按钮状态
-            document.getElementById('btnHardy').className = 
+            setClass('btnHardy', 
                 user === 'hardy' 
                     ? 'px-6 py-2 rounded-full font-semibold transition text-white bg-white/30'
-                    : 'px-6 py-2 rounded-full font-semibold transition text-white/70 hover:text-white';
-            document.getElementById('btnDella').className = 
+                    : 'px-6 py-2 rounded-full font-semibold transition text-white/70 hover:text-white');
+            setClass('btnDella', 
                 user === 'della' 
                     ? 'px-6 py-2 rounded-full font-semibold transition text-white bg-white/30'
-                    : 'px-6 py-2 rounded-full font-semibold transition text-white/70 hover:text-white';
+                    : 'px-6 py-2 rounded-full font-semibold transition text-white/70 hover:text-white');
             
             // 更新人偶和个人数据
-            document.getElementById('avatar').textContent = data.avatar;
-            document.getElementById('userName').textContent = data.name;
-            document.getElementById('daysCount').textContent = data.days || 1;
-            document.getElementById('height').textContent = data.height + ' cm';
-            document.getElementById('currentWeight').textContent = data.weight + ' kg';
-            document.getElementById('chest').textContent = data.chest ? data.chest + ' cm' : '待测量';
-            document.getElementById('arm').textContent = data.arm ? data.arm + ' cm' : '待测量';
-            document.getElementById('waist').textContent = data.waist ? data.waist + ' cm' : '待测量';
-            document.getElementById('hip').textContent = data.hip ? data.hip + ' cm' : '待测量';
-            document.getElementById('bmi').textContent = data.bmi;
-            document.getElementById('bodyFat').textContent = data.bodyFat + '%';
-            document.getElementById('muscle').textContent = data.muscle + ' kg';
-            document.getElementById('fatMass').textContent = data.fatMass + ' kg';
-            document.getElementById('visceralFat').textContent = data.visceralFat + '级';
-            document.getElementById('bmr').textContent = Math.round(data.bmr).toLocaleString();
-            document.getElementById('waterRate').textContent = data.waterRate + '%';
+            setText('avatar', data.avatar);
+            setText('userName', data.name);
+            setText('daysCount', data.days || 1);
+            setText('height', data.height + ' cm');
+            setText('currentWeight', data.weight + ' kg');
+            setText('chest', data.chest ? data.chest + ' cm' : '待测量');
+            setText('arm', data.arm ? data.arm + ' cm' : '待测量');
+            setText('waist', data.waist ? data.waist + ' cm' : '待测量');
+            setText('hip', data.hip ? data.hip + ' cm' : '待测量');
+            setText('bmi', data.bmi);
+            setText('bodyFat', data.bodyFat + '%');
+            setText('muscle', data.muscle + ' kg');
+            setText('fatMass', data.fatMass + ' kg');
+            setText('visceralFat', data.visceralFat + '级');
+            setText('bmr', Math.round(data.bmr).toLocaleString());
+            setText('waterRate', data.waterRate + '%');
             
             // 目标进度
             const weightDiff = data.weight - data.targetWeight;
-            const progress = Math.max(0, Math.min(100, ((78 - data.weight) / (78 - 58)) * 100)); // 简化计算
-            document.getElementById('targetProgress').style.width = progress + '%';
-            document.getElementById('targetWeight').textContent = data.targetWeight + ' kg';
-            document.getElementById('progressPercent').textContent = Math.round(progress) + '%';
-            document.getElementById('weightDiff').textContent = '距目标 ' + weightDiff.toFixed(1) + ' kg';
-            document.getElementById('weightDiff').className = weightDiff > 0 ? 'font-bold text-red-400' : 'font-bold text-green-400';
+            const startWeight = user === 'hardy' ? 76 : 65; // 起始体重
+            const progress = Math.max(0, Math.min(100, ((startWeight - data.weight) / (startWeight - data.targetWeight)) * 100));
+            setStyle('progressBar', 'width', progress + '%');
+            setText('targetWeight', data.targetWeight + ' kg');
+            setText('progressPercent', Math.round(progress) + '%');
+            setText('weightDiff', '距目标 ' + weightDiff.toFixed(1) + ' kg');
+            setClass('weightDiff', weightDiff > 0 ? 'font-bold text-red-400' : 'font-bold text-green-400');
             
             // 今日数据
-            document.getElementById('todayCalorie').textContent = data.todayCalorie.toLocaleString();
+            setText('todayCalorie', data.todayCalorie.toLocaleString());
             const caloriePercent = Math.min(100, (data.todayCalorie / data.calorieTarget) * 100);
-            document.getElementById('calorieBar').style.width = caloriePercent + '%';
-            document.getElementById('calorieTarget').textContent = data.calorieTarget.toLocaleString();
+            setStyle('calorieBar', 'width', caloriePercent + '%');
+            setText('calorieTarget', data.calorieTarget.toLocaleString());
             
-            document.getElementById('todayWater').textContent = data.todayWater.toLocaleString();
+            setText('todayWater', data.todayWater.toLocaleString());
             const waterPercent = Math.min(100, (data.todayWater / data.waterTarget) * 100);
-            document.getElementById('waterBar').style.width = waterPercent + '%';
-            document.getElementById('waterTarget').textContent = data.waterTarget.toLocaleString();
+            setStyle('waterBar', 'width', waterPercent + '%');
+            setText('waterTarget', data.waterTarget.toLocaleString());
             
-            document.getElementById('todayExercise').textContent = '+' + data.todayExercise.toLocaleString();
+            setText('todayExercise', '+' + data.todayExercise.toLocaleString());
             const exercisePercent = Math.min(100, (data.todayExercise / data.exerciseTarget) * 100);
-            document.getElementById('exerciseBar').style.width = exercisePercent + '%';
-            document.getElementById('exerciseTarget').textContent = data.exerciseTarget.toLocaleString();
+            setStyle('exerciseBar', 'width', exercisePercent + '%');
+            setText('exerciseTarget', data.exerciseTarget.toLocaleString());
             
             // 更新时间
             if (data.lastUpdate) {
-                document.getElementById('updateTime').textContent = data.lastUpdate;
+                setText('updateTime', data.lastUpdate);
             }
         }
 

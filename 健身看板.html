@@ -386,9 +386,115 @@
     <script>
         // 当前用户
         let currentUser = 'hardy';
+        let fitnessData = null;
 
-        // 用户完整身体数据
-        const userData = {
+        // 从JSON数据库加载并计算数据
+        async function loadFitnessData() {
+            try {
+                const response = await fetch('./fitness-data.json?v=' + Date.now());
+                fitnessData = await response.json();
+                console.log('✅ 数据加载成功', fitnessData);
+                return computeUserData(fitnessData);
+            } catch (e) {
+                console.error('❌ 数据加载失败，使用默认数据', e);
+                return getDefaultData();
+            }
+        }
+
+        // 计算用户数据
+        function computeUserData(data) {
+            const today = new Date().toISOString().split('T')[0];
+            const result = {};
+            
+            ['Hardy', 'Della'].forEach(userName => {
+                const userKey = userName.toLowerCase();
+                result[userKey] = {
+                    name: userName,
+                    avatar: userName === 'Hardy' ? '👨' : '👩',
+                    height: userName === 'Hardy' ? 170 : 162,
+                    targetWeight: userName === 'Hardy' ? 70 : 58,
+                    targetBodyFat: 18,
+                    waterTarget: 2000,
+                    exerciseTarget: 500,
+                    exercises: []
+                };
+                
+                // 今日体重
+                const weightRecord = data['表1_每日体重记录'].find(r => r['日期'] === today && r['用户'] === userName);
+                if (weightRecord) {
+                    result[userKey].weight = weightRecord['体重'];
+                    // 计算累计减重（取最近一周的起始体重）
+                    const weekWeights = data['表1_每日体重记录'].filter(r => r['用户'] === userName).sort((a, b) => a['日期'].localeCompare(b['日期']));
+                    if (weekWeights.length > 0) {
+                        result[userKey].weightDiff = weightRecord['体重'] - weekWeights[0]['体重'];
+                        result[userKey].days = weekWeights.length;
+                    }
+                    // BMI
+                    result[userKey].bmi = (weightRecord['体重'] / Math.pow(result[userKey].height / 100, 2)).toFixed(1);
+                }
+                
+                // 今日饮食
+                const foodRecords = data['表2_每日饮食记录'].filter(r => r['日期'] === today && r['用户'] === userName);
+                result[userKey].todayCalorie = foodRecords.reduce((sum, r) => sum + r['估算热量'], 0);
+                result[userKey].todayProtein = foodRecords.reduce((sum, r) => sum + r['估算蛋白质'], 0);
+                result[userKey].todayFood = foodRecords.map(r => ({ name: r['食物描述'], calorie: r['估算热量'] }));
+                
+                // 今日饮水
+                const waterRecord = data['表4_每日饮水记录'].find(r => r['日期'] === today && r['用户'] === userName);
+                result[userKey].todayWater = waterRecord ? waterRecord['饮水量'] : 0;
+                
+                // 今日运动
+                const exerciseRecords = data['表3_每日运动记录'].filter(r => r['日期'] === today && r['用户'] === userName);
+                result[userKey].todayExercise = exerciseRecords.reduce((sum, r) => sum + r['消耗热量'], 0);
+                result[userKey].exercises = exerciseRecords.map(r => ({ 
+                    type: r['运动类型'] === '力量' ? 'anaerobic' : 'aerobic', 
+                    name: r['运动名称'], 
+                    duration: r['时长'], 
+                    calorie: r['消耗热量'] 
+                }));
+                
+                // 热量目标（判断是否训练日）
+                const isTrainingDay = exerciseRecords.length > 0;
+                result[userKey].calorieTarget = isTrainingDay ? 
+                    data['表5_目标设置'][userName]['训练日热量目标'] : 
+                    data['表5_目标设置'][userName]['非训练日热量目标'];
+                
+                // 本周数据（用于图表）
+                const weekDates = getLastNDays(7);
+                result[userKey].weekCalories = weekDates.map(d => {
+                    const records = data['表2_每日饮食记录'].filter(r => r['日期'] === d && r['用户'] === userName);
+                    return records.reduce((sum, r) => sum + r['估算热量'], 0);
+                });
+                result[userKey].weekExercise = weekDates.map(d => {
+                    const records = data['表3_每日运动记录'].filter(r => r['日期'] === d && r['用户'] === userName);
+                    return records.reduce((sum, r) => sum + r['消耗热量'], 0);
+                });
+                result[userKey].weekWeight = weekDates.map(d => {
+                    const record = data['表1_每日体重记录'].find(r => r['日期'] === d && r['用户'] === userName);
+                    return record ? record['体重'] : 0;
+                });
+            });
+            
+            // 更新时间
+            document.getElementById('updateTime').textContent = data.lastUpdate;
+            
+            return result;
+        }
+
+        // 获取最近N天的日期
+        function getLastNDays(n) {
+            const dates = [];
+            for (let i = n - 1; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                dates.push(d.toISOString().split('T')[0]);
+            }
+            return dates;
+        }
+
+        // 默认数据（加载失败时使用）
+        function getDefaultData() {
+            return {
             hardy: {
                 name: 'Hardy',
                 avatar: '👨',
@@ -400,72 +506,38 @@
                 hip: null,
                 bmi: 26.1,
                 bodyFat: 19.7,
-                muscle: 56.7,           // 肌肉量
-                fatMass: 15.9,          // 脂肪量
-                visceralFat: 5,         // 内脏脂肪等级
-                bmr: 1678,              // 基础代谢
-                waterRate: 58,          // 水分率
+                muscle: 56.7,
+                fatMass: 15.9,
+                visceralFat: 5,
+                bmr: 1678,
+                waterRate: 58,
                 targetWeight: 70,
                 targetBodyFat: 18,
-                days: 1,  // 从2026-06-28开始
-                weightDiff: -0.5,  // 累计下降0.5kg
-                // 今日数据
-                todayCalorie: 1145,
+                days: 1,
+                weightDiff: -0.5,
+                todayCalorie: 0,
                 calorieTarget: 1900,
-                todayWater: 1500,
+                todayWater: 0,
                 waterTarget: 2000,
                 todayExercise: 0,
                 exerciseTarget: 500,
-                // 运动明细
                 exercises: [],
-                // 今日饮食明细
-                todayFood: [
-                    { name: "全麦面包*2 + 牛奶200ml + 鸡蛋", calorie: 490 },
-                    { name: "米饭150g + 家常菜300g", calorie: 655 }
-                ],
-                // 本周热量数据（用于图表）
-                weekCalories: [0, 0, 0, 0, 0, 1647, 490],
-                weekExercise: [0, 0, 0, 0, 0, 700, 0],
-                // 体重数据（kg）
-                weekWeight: [75.4, 0, 0, 0, 0, 75.4, 75.5],
-                monthWeight: [75.5, 0, 0, 0],
-                // 体脂数据（%）
-                weekBodyFat: [21, 0, 0, 0, 0, 0, 0],
-                monthBodyFat: [21, 0, 0, 0],
-                // 月维度数据（过去4周总热量）
-                monthCalories: [0, 0, 0, 0],
-                monthExercise: [0, 0, 0, 0],
-                // 健康建议数据
+                todayFood: [],
+                weekCalories: [0,0,0,0,0,0,0],
+                weekExercise: [0,0,0,0,0,0,0],
+                weekWeight: [0,0,0,0,0,0,0],
+                monthCalories: [0,0,0,0],
+                monthExercise: [0,0,0,0],
+                weekBodyFat: [0,0,0,0,0,0,0],
+                monthBodyFat: [0,0,0,0],
                 advice: {
-                    positive: [
-                        '累计减重0.5kg，趋势向好',
-                        '体重数据已同步，坚持记录'
-                    ],
-                    improve: [
-                        '早餐未吃，建议规律进食避免代谢下降',
-                        '饮水量待记录，每天需喝够2000ml',
-                        '今日运动待打卡'
-                    ],
-                    diet: [
-                        '早餐一定要吃，建议鸡蛋+牛奶+粗粮',
-                        '脂肪肝需控酒少油，优先高蛋白蔬菜',
-                        '三餐规律，避免空腹太久导致暴饮暴食'
-                    ],
-                    training: [
-                        '每周3-4练，力量+有氧结合',
-                        '每次训练后走20分钟，帮助燃脂'
-                    ],
-                    weekGoals: [
-                        { text: "体重降到74.5kg", progress: 20 },
-                        { text: "每日饮水2000ml，达标6天 (1/6)", progress: 17 },
-                        { text: "完成3次力量训练 (1/3)", progress: 33 },
-                        { text: "完成3次有氧训练", progress: 0 }
-                    ],
-                    tomorrow: '上午空腹有氧30分钟，下午练腿，午餐增加蛋白质比例',
-                    dailyTip: {
-                        title: '💧 为什么要每天喝够水？',
-                        content: '充足的水分可以提升代谢率约30%。研究表明，每天喝够2L水，每月可多燃烧约17400大卡，相当于减重2kg脂肪！建议分多次饮用，不要等到口渴才喝。'
-                    }
+                    positive: ['数据加载中...'],
+                    improve: [],
+                    diet: [],
+                    training: [],
+                    weekGoals: [],
+                    tomorrow: '',
+                    dailyTip: { title: '', content: '' }
                 }
             },
             della: {
@@ -476,564 +548,45 @@
                 chest: null,
                 arm: null,
                 waist: null,
-                hip: null,           // 最新体测 2026-06-28
-                bmi: 25,
-                bodyFat: 34.9,          // 体脂率
-                muscle: 39.8,           // 肌肉量
-                fatMass: 22.9,          // 脂肪量
-                visceralFat: 11,        // 内脏脂肪等级
-                bmr: 1291,              // 基础代谢
-                waterRate: 30.9,          // 水分率
+                hip: null,
+                bmi: 24.7,
+                bodyFat: 37.7,
+                muscle: 38.2,
+                fatMass: 23.8,
+                visceralFat: 3,
+                bmr: 1350,
+                waterRate: 50,
                 targetWeight: 58,
                 targetBodyFat: 28,
-                days: 15,  // 2026-06-14 启动
-                weightDiff: -1.0,  // 已减重 1.0kg
-                // 今日数据
-                todayCalorie: 685,
-                calorieTarget: 1550,    // 非训练日 1400-1550
-                todayWater: 1200,
+                days: 1,
+                weightDiff: -1.0,
+                todayCalorie: 0,
+                calorieTarget: 1550,
+                todayWater: 0,
                 waterTarget: 2000,
                 todayExercise: 0,
                 exerciseTarget: 500,
-                // 运动明细
                 exercises: [],
-                // 今日饮食明细
-                todayFood: [
-                    { name: "全麦面包半片 + 牛奶200ml + 鸡蛋", calorie: 235 },
-                    { name: "松板肉150g + 生菜4片 + 米饭120g", calorie: 450 }
-                ],
-                // 本周热量数据（用于图表）
-                weekCalories: [0, 0, 0, 0, 0, 1453, 0],
-                weekExercise: [0, 0, 0, 0, 0, 740, 0],
-                // 月维度数据（过去4周总热量）
-                monthCalories: [11200, 11550, 11060, 6400],
-                monthExercise: [2940, 3360, 2660, 1280],
-                // 体重数据（kg）
-                weekWeight: [65.5, 0, 0, 0, 0, 65.5, 64.9],
-                monthWeight: [65.5, 0, 0, 0],
-                // 体脂数据（%）
-                weekBodyFat: [37.7, 0, 0, 0, 0, 0, 0],
-                monthBodyFat: [37.7, 0, 0, 0],
-                // 月维度数据（过去4周总热量）
-                monthCalories: [0, 0, 0, 0],
-                monthExercise: [0, 0, 0, 0],
-                // 健康建议数据
+                todayFood: [],
+                weekCalories: [0,0,0,0,0,0,0],
+                weekExercise: [0,0,0,0,0,0,0],
+                weekWeight: [0,0,0,0,0,0,0],
+                monthCalories: [0,0,0,0],
+                monthExercise: [0,0,0,0],
+                weekBodyFat: [0,0,0,0,0,0,0],
+                monthBodyFat: [0,0,0,0],
                 advice: {
-                    positive: [
-                        '累计减重1.0kg，稳步前进',
-                        '减脂第15天，执行力很棒',
-                        '早餐已吃，热量控制良好'
-                    ],
-                    improve: [
-                        '饮水量待记录，目标2000ml/天',
-                        '今日为非训练日，可适当散步'
-                    ],
-                    diet: [
-                        '早餐必须吃，保护代谢，建议蛋+奶+燕麦',
-                        '每餐保证一拳蛋白质，多吃蔬菜',
-                        '三餐规律，晚餐别超过8点'
-                    ],
-                    training: [
-                        '私教课后加20分钟有氧，效果翻倍',
-                        '每周保证3练，稳步向58kg前进'
-                    ],
-                    weekGoals: [
-                        { text: "体重降到64.5kg", progress: 15 },
-                        { text: "每日饮水2000ml，达标6天 (1/6)", progress: 17 },
-                        { text: "完成4次力量训练 (1/4)", progress: 25 },
-                        { text: "完成4次有氧训练 (1/4)", progress: 25 }
-                    ],
-                    tomorrow: '上午私教课练肩背，课后椭圆机20分钟，晚餐清淡为主',
-                    dailyTip: {
-                        title: '🥗 蛋白质这样吃更减脂',
-                        content: '每公斤体重摄入1.6-2.2g蛋白质，既能增加饱腹感，又能提升代谢。优质蛋白来源：鸡胸肉、鱼虾、鸡蛋、希腊酸奶、豆制品。餐前吃蛋白质更有利于控制食欲哦！'
-                    }
+                    positive: ['数据加载中...'],
+                    improve: [],
+                    diet: [],
+                    training: [],
+                    weekGoals: [],
+                    tomorrow: '',
+                    dailyTip: { title: '', content: '' }
                 }
             }
-        };
+
+            };
+        }
 
         // 渲染今日饮食列表
-        function renderTodayFood() {
-            const foodList = userData[currentUser].todayFood || [];
-            const mealTypes = ['🍳 早餐', '🥗 午餐', '🍽️ 晚餐', '🍎 加餐'];
-            let html = '';
-            
-            for (let i = 0; i < 4; i++) {
-                const meal = foodList[i] || { name: '待反馈', calorie: '-' };
-                const calorieClass = meal.calorie === '-' ? 'text-gray-400' : 'text-green-600';
-                html += `
-                    <div class="bg-gray-50 rounded-lg p-2">
-                        <p class="text-gray-500 font-medium">${mealTypes[i]}</p>
-                        <p class="text-gray-700 truncate" title="${meal.name}">${meal.name}</p>
-                        <p class="${calorieClass} font-semibold">${meal.calorie} kcal</p>
-                    </div>
-                `;
-            }
-            document.getElementById('todayFoodList').innerHTML = html;
-        }
-
-        // 切换用户函数
-        
-        // 填充周数据：0值替换为最近有效值
-        function fillLastData(arr) {
-            let lastValid = 0;
-            const result = [...arr];
-            for (let i = 0; i < result.length; i++) {
-                if (result[i] > 0) lastValid = result[i];
-                else if (lastValid > 0) result[i] = lastValid;
-            }
-            return result;
-        }
-
-        // 预填充周数据
-        function prefillWeekData() {
-            const data = userData[currentUser];
-            if (!data) return;
-            if (data.weekWeight) data.weekWeight = fillLastData(data.weekWeight);
-            if (data.weekBodyFat) data.weekBodyFat = fillLastData(data.weekBodyFat);
-        }
-        function switchUser(user) {
-            currentUser = user;
-            const data = userData[user];
-            
-            // 更新按钮状态
-            document.getElementById('btnHardy').className = 
-                user === 'hardy' 
-                    ? 'px-6 py-2 rounded-full font-semibold transition text-white bg-white/30'
-                    : 'px-6 py-2 rounded-full font-semibold transition text-white/70 hover:text-white';
-            document.getElementById('btnDella').className = 
-                user === 'della' 
-                    ? 'px-6 py-2 rounded-full font-semibold transition text-white bg-white/30'
-                    : 'px-6 py-2 rounded-full font-semibold transition text-white/70 hover:text-white';
-            
-            // 更新人偶和个人数据
-            document.getElementById('avatar').textContent = data.avatar;
-            document.getElementById('userName').textContent = data.name;
-            // 计算坚持天数（从2026-06-28开始）
-            const startDate = new Date('2026-06-28');
-            const today = new Date();
-            const daysCount = Math.floor((today - startDate) / (1000 * 60 * 60 * 24)) + 1;
-            document.getElementById('daysCount').textContent = daysCount;
-            document.getElementById('height').textContent = data.height + ' cm';
-            document.getElementById('currentWeight').textContent = data.weight + ' kg';
-            document.getElementById('chest').textContent = data.chest ? data.chest + ' cm' : '待测量';
-            document.getElementById('arm').textContent = data.arm ? data.arm + ' cm' : '待测量';
-            document.getElementById('waist').textContent = data.waist ? data.waist + ' cm' : '待测量';
-            document.getElementById('hip').textContent = data.hip ? data.hip + ' cm' : '待测量';
-            
-            // 围度颜色标注：绿=理想，白=正常，红=超标
-            const waistEl = document.getElementById('waist');
-            waistEl.className = 'text-white font-semibold'; // 默认白色
-            if (currentUser === 'hardy' && data.waist) {
-                if (data.waist < 85) waistEl.className = 'text-green-400 font-semibold';
-                if (data.waist >= 90) waistEl.className = 'text-red-400 font-semibold';
-            } else if (data.waist) {
-                if (data.waist < 80) waistEl.className = 'text-green-400 font-semibold';
-                if (data.waist >= 85) waistEl.className = 'text-red-400 font-semibold';
-            }
-            document.getElementById('bmi').textContent = data.bmi;
-            document.getElementById('bodyFat').textContent = data.bodyFat + '%';
-            document.getElementById('muscle').textContent = data.muscle + ' kg';
-            document.getElementById('fatMass').textContent = data.fatMass + ' kg';
-            document.getElementById('visceralFat').textContent = data.visceralFat + '级';
-            document.getElementById('bmr').textContent = data.bmr.toLocaleString();
-            document.getElementById('waterRate').textContent = data.waterRate + '%';
-            
-            // 指标颜色标注：绿=正常/优秀，红=预警/超标
-            const bmiEl = document.getElementById('bmi');
-            const bodyFatEl = document.getElementById('bodyFat');
-            const visceralFatEl = document.getElementById('visceralFat');
-            
-            // 重置默认颜色
-            bmiEl.className = 'text-lg font-bold text-white';
-            bodyFatEl.className = 'text-lg font-bold text-white';
-            visceralFatEl.className = 'text-lg font-bold text-white';
-            
-            if (currentUser === 'hardy') {
-                // 男性标准
-                if (data.bmi >= 18.5 && data.bmi < 24) bmiEl.className = 'text-lg font-bold text-green-400';
-                if (data.bmi >= 28) bmiEl.className = 'text-lg font-bold text-red-400';
-                if (data.bodyFat >= 15 && data.bodyFat < 22) bodyFatEl.className = 'text-lg font-bold text-green-400';
-                if (data.bodyFat >= 25) bodyFatEl.className = 'text-lg font-bold text-red-400';
-                if (data.visceralFat < 5) visceralFatEl.className = 'text-lg font-bold text-green-400';
-                if (data.visceralFat >= 9) visceralFatEl.className = 'text-lg font-bold text-red-400';
-            } else {
-                // 女性标准
-                if (data.bmi >= 18.5 && data.bmi < 24) bmiEl.className = 'text-lg font-bold text-green-400';
-                if (data.bmi >= 28) bmiEl.className = 'text-lg font-bold text-red-400';
-                if (data.bodyFat >= 20 && data.bodyFat < 27) bodyFatEl.className = 'text-lg font-bold text-green-400';
-                if (data.bodyFat >= 32) bodyFatEl.className = 'text-lg font-bold text-red-400';
-                if (data.visceralFat < 5) visceralFatEl.className = 'text-lg font-bold text-green-400';
-                if (data.visceralFat >= 9) visceralFatEl.className = 'text-lg font-bold text-red-400';
-            }
-            document.getElementById('targetWeight').textContent = data.targetWeight + ' kg';
-            document.getElementById('targetBodyFat').textContent = data.targetBodyFat + '%';
-            
-            // 计算进度条和距离目标
-            const weightDiff = data.weight - data.targetWeight;
-            const startWeight = data.targetWeight * 1.15; // 假设初始体重比目标重15%
-            const progress = Math.max(0, Math.min(100, ((startWeight - data.weight) / (startWeight - data.targetWeight)) * 100));
-            
-            document.getElementById('progressText').textContent = weightDiff > 0 ? '还差 ' + weightDiff.toFixed(1) + ' kg' : '已达成目标！🎉';
-            document.getElementById('progressBar').style.width = progress.toFixed(0) + '%';
-            document.getElementById('progressPercent').textContent = progress.toFixed(0);
-            
-            // 体重环比
-            const diffEl = document.getElementById('weightDiff');
-            if (data.weightDiff < 0) {
-                diffEl.textContent = '↓ ' + Math.abs(data.weightDiff).toFixed(1) + ' kg';
-                diffEl.className = 'font-bold positive';
-            } else if (data.weightDiff > 0) {
-                diffEl.textContent = '↑ ' + data.weightDiff.toFixed(1) + ' kg';
-                diffEl.className = 'font-bold negative';
-            } else {
-                diffEl.textContent = '-- kg';
-                diffEl.className = 'font-bold text-gray-400';
-            }
-            
-            // BMI体型评估
-            const bmi = data.bmi;
-            let assessment, color, position, shape;
-            if (bmi < 18.5) {
-                assessment = '偏瘦';
-                color = 'bg-blue-400';
-                position = 12.5;
-                shape = '🦴 体型偏瘦';
-            } else if (bmi < 24) {
-                assessment = '健康';
-                color = 'bg-green-400';
-                position = 37.5;
-                shape = '💪 健康体型';
-            } else if (bmi < 28) {
-                assessment = '超重';
-                color = 'bg-yellow-400';
-                position = 62.5;
-                shape = '⚖️  需要减重';
-            } else {
-                assessment = '肥胖';
-                color = 'bg-red-400';
-                position = 87.5;
-                shape = '❤️ 关注健康';
-            }
-            
-            document.getElementById('bodyShape').innerHTML = 
-                `<span class="text-2xl">${shape.split(' ')[0]}</span>
-                 <span class="text-white text-sm font-medium ml-1">${shape.split(' ').slice(1).join(' ')}</span>`;
-            document.getElementById('bmiAssessment').textContent = assessment;
-            document.getElementById('bmiIndicator').className = `${color} h-2 rounded-full transition-all`;
-            document.getElementById('bmiIndicator').style.width = position + '%';
-            
-            // 渲染运动明细
-            let exerciseHtml = '';
-            data.exercises.forEach(ex => {
-                const typeLabel = ex.type === 'aerobic' ? '🏃 有氧' : '🏋️ 无氧';
-                const typeColor = ex.type === 'aerobic' ? 'text-blue-600' : 'text-orange-600';
-                const bgColor = ex.type === 'aerobic' ? 'bg-blue-50' : 'bg-orange-50';
-                exerciseHtml += `
-                    <div class="${bgColor} rounded-lg p-2">
-                        <p class="${typeColor} font-medium">${typeLabel}</p>
-                        <p class="font-medium">${ex.name}</p>
-                        <p class="text-gray-500">${ex.duration}分钟 · +${ex.calorie} kcal</p>
-                    </div>
-                `;
-            });
-            if (data.exercises.length === 0) {
-                exerciseHtml = '<div class="col-span-2 text-center text-gray-400 py-3">今天还没运动哦 💪</div>';
-            }
-            document.getElementById('todayExerciseList').innerHTML = exerciseHtml;
-
-            // 更新今日数据
-            document.getElementById('todayCalorie').textContent = data.todayCalorie.toLocaleString() + ' kcal';
-            document.getElementById('calorieTarget').textContent = data.calorieTarget.toLocaleString();
-            document.getElementById('calorieBar').style.width = (data.todayCalorie / data.calorieTarget * 100) + '%';
-            
-            document.getElementById('todayWater').textContent = data.todayWater.toLocaleString() + ' ml';
-            document.getElementById('waterTarget').textContent = data.waterTarget.toLocaleString();
-            document.getElementById('waterBar').style.width = (data.todayWater / data.waterTarget * 100) + '%';
-            
-            const exerciseEl = document.getElementById('todayExercise');
-            if (data.todayExercise >= data.exerciseTarget) {
-                exerciseEl.textContent = '+' + data.todayExercise.toLocaleString() + ' kcal';
-                exerciseEl.className = 'font-semibold text-base positive';
-            } else {
-                exerciseEl.textContent = '+' + data.todayExercise.toLocaleString() + ' kcal';
-                exerciseEl.className = 'font-semibold text-base text-orange-500';
-            }
-            document.getElementById('exerciseTarget').textContent = data.exerciseTarget.toLocaleString();
-            const exerciseProgress = Math.min(100, (data.todayExercise / data.exerciseTarget * 100));
-            document.getElementById('exerciseBar').style.width = exerciseProgress + '%';
-            
-            // 渲染建议区域
-            const advice = data.advice;
-            
-            document.getElementById('positiveList').innerHTML = 
-                advice.positive.map(item => `<li>• ${item}</li>`).join('');
-            document.getElementById('improveList').innerHTML = 
-                advice.improve.map(item => `<li>• ${item}</li>`).join('');
-            document.getElementById('dietAdvice').innerHTML = 
-                advice.diet.map(item => `<li>• ${item}</li>`).join('');
-            document.getElementById('trainingAdvice').innerHTML = 
-                advice.training.map(item => `<li>• ${item}</li>`).join('');
-            
-            // 渲染本周目标
-            let goalsHtml = '';
-            advice.weekGoals.forEach(goal => {
-                const color = goal.progress >= 70 ? 'bg-green-500' : goal.progress >= 40 ? 'bg-yellow-500' : 'bg-red-500';
-                goalsHtml += `
-                    <div class="mb-2">
-                        <div class="flex justify-between text-xs mb-4">
-                            <span class="text-gray-600">${goal.text}</span>
-                            <span class="text-gray-500">${goal.progress}%</span>
-                        </div>
-                        <div class="w-full bg-gray-200 rounded-full h-1.5">
-                            <div class="${color} h-1.5 rounded-full" style="width: ${goal.progress}%"></div>
-                        </div>
-                    </div>
-                `;
-            });
-            document.getElementById('weekGoals').innerHTML = goalsHtml;
-
-            // 先预填充数据，再渲染
-            prefillWeekData();
-            
-            renderTrendChart();
-            
-            
-            renderTodayFood();
-            console.log('切换到用户:', data.name);
-        }
-
-        // 当前视图和数据类型
-        let currentTimeView = 'week'; // week / month
-        let currentDataType = 'calorie'; // calorie / weight
-        let trendChart = null;
-
-        // 时间视图切换
-        function switchTimeView(view) {
-            currentTimeView = view;
-            
-            // 更新按钮状态
-            document.getElementById('btnWeek').className = 
-                view === 'week' 
-                    ? 'px-4 py-1.5 rounded-md text-sm font-semibold transition text-white bg-purple-500'
-                    : 'px-4 py-1.5 rounded-md text-sm font-semibold transition text-gray-600 hover:text-gray-800';
-            document.getElementById('btnMonth').className = 
-                view === 'month' 
-                    ? 'px-4 py-1.5 rounded-md text-sm font-semibold transition text-white bg-purple-500'
-                    : 'px-4 py-1.5 rounded-md text-sm font-semibold transition text-gray-600 hover:text-gray-800';
-            
-            // 更新标题
-            const titleEl = document.getElementById('trendChartTitle');
-            if (currentDataType === 'calorie') {
-                titleEl.textContent = view === 'week' ? '📈 本周热量趋势' : '📈 过去四周热量趋势';
-            } else {
-                titleEl.textContent = view === 'week' ? '⚖️ 本周体重趋势' : '⚖️ 过去四周体重趋势';
-            }
-            
-            // 先预填充数据，再渲染
-            prefillWeekData();
-            
-            renderTrendChart();
-            
-        }
-
-        // 生成日历
-        function renderCalendar() {
-            const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-            const today = new Date();
-            const dayOfWeek = today.getDay(); // 0=周日, 1=周一...
-            const todayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // 转换为0-6，周一为0
-            
-            // 计算本周一的日期
-            const monday = new Date(today);
-            monday.setDate(today.getDate() - todayIndex);
-            
-            const calendarEl = document.getElementById('calendarView');
-            let html = '';
-            
-            if (currentTimeView === 'week') {
-                // 周视图：7列布局
-                calendarEl.className = 'grid grid-cols-7 gap-2';
-                
-                for (let i = 0; i < 7; i++) {
-                    const currentDate = new Date(monday);
-                    currentDate.setDate(monday.getDate() + i);
-                    const dateNum = currentDate.getDate();
-                    
-                    const isToday = i === todayIndex;
-                    const hasCalorieData = userData[currentUser].weekCalories[i] > 0;
-                    const hasExerciseData = userData[currentUser].weekExercise[i] > 0;
-                    const calorie = hasCalorieData ? userData[currentUser].weekCalories[i] : '-';
-                    const exercise = hasExerciseData ? userData[currentUser].weekExercise[i] : '-';
-                    
-                    html += `
-                        <div class="text-center p-3 rounded-xl ${isToday ? 'bg-purple-100 border-2 border-purple-400' : 'bg-gray-50'}">
-                            <p class="text-xs ${isToday ? 'text-purple-600' : 'text-gray-500'}">${weekDays[i]}</p>
-                            <p class="font-bold text-lg">${dateNum}</p>
-                            <div class="mt-2 text-xs text-orange-500">
-                                ${hasCalorieData ? calorie : (isToday ? '今天' : '-')}
-                            </div>
-                            <div class="text-xs text-green-500 mt-1">
-                                ${exercise}
-                            </div>
-                        </div>
-                    `;
-                }
-            } else {
-                // 月视图：4列布局，充分利用空间
-                calendarEl.className = 'grid grid-cols-4 gap-4';
-                
-                const weekLabels = ['第1周', '第2周', '第3周', '本周'];
-                const monthCalories = userData[currentUser].monthCalories || [12500, 13200, 12800, 0];
-                const monthExercise = userData[currentUser].monthExercise || [2100, 2450, 1960, 1600];
-                
-                for (let i = 0; i < 4; i++) {
-                    const isCurrentWeek = i === 3;
-                    const avgCalorie = Math.round(monthCalories[i] / 7);
-                    const avgExercise = Math.round(monthExercise[i] / 7);
-                    const hasCalorieData = monthCalories[i] > 0;
-                    const hasExerciseData = monthExercise[i] > 0;
-                    
-                    html += `
-                        <div class="p-3 rounded-xl ${isCurrentWeek ? 'bg-purple-100 border-2 border-purple-400' : 'bg-gray-50 border-2 border-transparent'} text-center">
-                            <p class="text-sm font-semibold ${isCurrentWeek ? 'text-purple-600' : 'text-gray-500'}">${weekLabels[i]}</p>
-                            <p class="font-bold text-lg mt-2 text-orange-500">${hasCalorieData ? avgCalorie : '-'}</p>
-                            <p class="text-[10px] text-gray-500">日均摄入</p>
-                            <p class="font-bold text-base text-green-500 mt-1">${hasExerciseData ? avgExercise : '-'}</p>
-                            <p class="text-[10px] text-gray-500">日均消耗</p>
-                            <div class="mt-2 pt-2 border-t border-gray-200">
-                                <p class="text-sm text-orange-500 font-semibold">${hasCalorieData ? monthCalories[i].toLocaleString() : '-'}</p>
-                                <p class="text-sm text-green-500 font-semibold mt-1">${hasExerciseData ? monthExercise[i].toLocaleString() : '-'}</p>
-                            </div>
-                        </div>
-                    `;
-                }
-            }
-            
-            if (data.weekBodyFat) data.weekBodyFat = fillLastData(data.weekBodyFat);
-        }
-
-        // 数据填充：如果当天没数据，沿用最近一次的记录
-        function fillLastData(arr) {
-            let lastValid = 0;
-            const result = [...arr];
-            for (let i = 0; i < result.length; i++) {
-                if (result[i] > 0) lastValid = result[i];
-                else if (lastValid > 0) result[i] = lastValid;
-            }
-            return result;
-        }
-
-        // 当前数据类型：calorie / weight
-
-        // 切换数据类型
-        function switchDataType(type) {
-            currentDataType = type;
-            document.getElementById('btnCalorie').className = 
-                type === 'calorie' 
-                    ? 'px-3 py-1 rounded-md text-sm font-semibold transition text-white bg-purple-500'
-                    : 'px-3 py-1 rounded-md text-sm font-semibold transition text-gray-600 hover:text-gray-800';
-            document.getElementById('btnWeight').className = 
-                type === 'weight' 
-                    ? 'px-3 py-1 rounded-md text-sm font-semibold transition text-white bg-purple-500'
-                    : 'px-3 py-1 rounded-md text-sm font-semibold transition text-gray-600 hover:text-gray-800';
-            const titleEl = document.getElementById('trendChartTitle');
-            if (type === 'calorie') {
-                titleEl.textContent = currentTimeView === 'week' ? '📈 本周热量趋势' : '📈 过去四周热量趋势';
-            } else {
-                titleEl.textContent = currentTimeView === 'week' ? '⚖️ 本周体重趋势' : '⚖️ 过去四周体重趋势';
-            }
-            renderTrendChart();
-        }
-
-        // 渲染趋势图（整合热量和体重）
-        function renderTrendChart() {
-            const ctx = document.getElementById('trendChart').getContext('2d');
-            if (trendChart) trendChart.destroy();
-            
-            if (currentDataType === 'calorie') {
-                let labels, intakeData, burnData;
-                if (currentTimeView === 'week') {
-                    labels = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-                    intakeData = userData[currentUser].weekCalories;
-                    burnData = userData[currentUser].weekExercise;
-                } else {
-                    labels = ['第1周', '第2周', '第3周', '本周'];
-                    const mc = userData[currentUser].monthCalories || [0,0,0,0];
-                    const me = userData[currentUser].monthExercise || [0,0,0,0];
-                    intakeData = mc.map(c => c > 0 ? Math.round(c/7) : 0);
-                    burnData = me.map(c => c > 0 ? Math.round(c/7) : 0);
-                }
-                trendChart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: labels,
-                        datasets: [
-                            { label: '热量摄入 (kcal)', data: intakeData, borderColor: '#f97316', backgroundColor: 'rgba(249,115,22,0.1)', fill: false, tension: 0.4, pointRadius: 4 },
-                            { label: '运动消耗 (kcal)', data: burnData, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: false, tension: 0.4, pointRadius: 4 }
-                        ]
-                    },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'top' } }, scales: { y: { beginAtZero: false, suggestedMax: 2500 } } }
-                });
-            } else {
-                let labels, weightData;
-                prefillWeekData();
-                if (currentTimeView === 'week') {
-                    labels = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-                    weightData = userData[currentUser].weekWeight || [];
-                } else {
-                    labels = ['第1周', '第2周', '第3周', '本周'];
-                    weightData = userData[currentUser].monthWeight || [];
-                }
-                trendChart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: labels,
-                        datasets: [{ label: '体重 (kg)', data: weightData, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: false, tension: 0.4, pointRadius: 4 }]
-                    },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'top' } }, scales: { y: { beginAtZero: false } } }
-                });
-            }
-        }
-
-        // 实时时钟
-        function updateTime() {
-            const now = new Date();
-            // 使用中国时区格式化
-            const options = { 
-                year: 'numeric', 
-                month: '2-digit', 
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-                timeZone: 'Asia/Shanghai'
-            };
-            const timeStr = now.toLocaleString('zh-CN', options).replace(/\//g, '-');
-            document.getElementById('updateTime').textContent = timeStr;
-        }
-        updateTime();
-        setInterval(updateTime, 60000);
-
-        // 页面加载完成后初始化
-        document.addEventListener('DOMContentLoaded', function() {
-            // 等待Chart.js加载完成
-            if (typeof Chart === 'undefined') {
-                console.log('等待Chart.js加载...');
-                setTimeout(initPage, 500);
-            } else {
-                initPage();
-            }
-        });
-        
-        function initPage() {
-            switchUser('hardy');
-            prefillWeekData();
-            
-            renderTrendChart();
-            renderTodayFood();
-            console.log('看板初始化完成');
-        }
-    </script>
-</body>
-</html>
